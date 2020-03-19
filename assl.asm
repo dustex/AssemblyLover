@@ -1,6 +1,7 @@
 ;
 ; ***************************************************************************
-; * uC Seminar - I2C Display and PCF8591 AD/DA       					   	*
+; * Assembly Lover                                                          *
+; * ATMega8515 with I2C Display and PCF8591 AD/DA       					*
 ; * Version 0.1.1                            								*
 ; *																			*
 ; * (C)2013 by Christian Feichtinger         								*
@@ -50,6 +51,7 @@
 .EQU ddrI2C		= DDRE			; I2C Datadirection register
 .EQU pinSCL		= PINE0			; I2C SCL Pin
 .EQU pinSDA		= PINE1			; I2C SDA Pin
+
 ;
 ; =======================================================
 ;  Constants and Definitions
@@ -77,7 +79,7 @@
 ; Analog Comparator: Timer 0 Preset Value
 .EQU T0PRESET	= 192		; T/C0 Preset Constant (265-64)
 
-; I2C Bus definitions...
+; I2C Bus definitions
 .EQU b_I2Cdir	= 0			; I2C transfer direction bit in address byte
 .EQU b_I2Crd	= 1			; I2C direction read
 .EQU b_I2Cwr	= 0			; I2C direction write
@@ -93,16 +95,16 @@
 
 ; Menu definitions
 .EQU NOOFMENUS	= 7			; number of menu screens
-.EQU STARTMENU	= 3			; which menu should be shown first
+.EQU STARTMENU	= 3			; which menu should be shown after startup
 
 ; Flag definitions for the rFlag register
 .EQU b_JOB_ADC			= 7	; Job Analog Comparator scheduled
 .EQU b_JOB_PCF8591_RD	= 6	; Job PCF8591 ADC: read all 4 input channels
 .EQU b_JOB_PCF8591_WR	= 5	; Job PCF8591 ADC: set output Voltage
 .EQU b_JOB_UART_TX		= 4	; Job UART transmit: one byte scheduled
-.EQU b_UPDATE_SCREEN	= 3	; if set, Display has to be updated
+.EQU b_UPDATE_SCREEN	= 3	; If set, Display has to be updated
 .EQU b_I2C_WAIT_STATE	= 2	; I2C engine is in state I2C_get_ack_wait (waiting for SCL pin HIGH)
-.EQU b_SEC				= 1	; one second elapsed
+.EQU b_SEC				= 1	; One second elapsed
 .EQU b_MAIN_TICK		= 0	; 400Hz (2,5ms elapsed): used for executing main loop every 2,5 ms
 
 ; Flag definitions for the rFlag2 register
@@ -114,7 +116,6 @@
 .EQU b_res1				= 2	; 
 .EQU b_PCF8591_WR_EN	= 1	; PCF8591 ADC: write enabled by user
 .EQU b_PCF8591_RD_EN	= 0	; PCF8591 ADC: read enabled by user
-;
 
 ;
 ; ============================================
@@ -153,7 +154,7 @@
 ;	 yh			= R29		; Data Pointer Y H	
 ;	 zl			= R30		; Data Pointer Z L	
 ;	 zh			= R31		; Data Pointer Z H	
-;
+
 
 ;
 ; ============================================
@@ -167,7 +168,7 @@
 sKeyState:		.byte 3		; Byte 0: Button Status, Byte 1 + Byte 2: Debouncing Counter (2 bit counter for each input)
 sRdptr:			.byte 1		; Read pointer for UART buffer
 sWrptr:			.byte 1		; Write pointer for UART buffer
-;sI2CTimer:		.byte 2		; Timer I2C waiting for acknowledge
+sI2CTimer:		.byte 2		; Timer I2C waiting for acknowledge
 sJobTimer:		.byte 2		; Timer for low frequent jobs in main loop
 sTimeS:			.byte 1		; System time stamp Seconds
 sTimeM:			.byte 1		; System time stamp Minutes
@@ -177,11 +178,11 @@ sAdcI2cAIN0:	.byte 1		; Result of external I2C-ADC PCF8591 analog input AIN0
 sAdcI2cAIN1:	.byte 1		; Result of external I2C-ADC PCF8591 analog input AIN1
 sAdcI2cAIN2:	.byte 1		; Result of external I2C-ADC PCF8591 analog input AIN2
 sAdcI2cAIN3:	.byte 1		; Result of external I2C-ADC PCF8591 analog input AIN3
-; Total: 		19 Bytes 	End Adress: 0x0060+(17x8Bit)=0x
+; Total used: 	17 Bytes 	End Adress: 0x00000060+(17Byte)=0x00000071 -> See .map file
 
 .ORG	0x0100
 sUartBuffer:	.byte 256	; 256 Byte as ringbuffer for UART TX (whole Page 1)
-;
+
 
 ;
 ; ==============================================
@@ -190,23 +191,23 @@ sUartBuffer:	.byte 256	; 256 Byte as ringbuffer for UART TX (whole Page 1)
 ;
 .CSEG
 .ORG	0x0000
-			rjmp 	main 			; Reset-Vector
-			rjmp 	deadbeef		; Ext Int 0
-			rjmp 	deadbeef		; Ext Int 1
-			rjmp 	deadbeef		; Timer/Counter1 Capture Event
-			rjmp 	ISR_TC1			; Timer/Counter1 Compare Match A
-			rjmp 	deadbeef		; Timer/Counter1 Compare Match B
-			rjmp 	deadbeef		; Timer/Counter1 Overflow
-			rjmp 	deadbeef		; Timer/Counter0 Overflow
-			rjmp 	deadbeef		; Serial Transfer Complete
-			rjmp 	deadbeef		; UART Rx Complete
-			rjmp 	deadbeef		; UART Data register empty
-			rjmp 	deadbeef		; UART Tx Complete
-			rjmp 	ISR_ANACmp		; Analog Comparator
-			rjmp 	deadbeef		; External Interrupt Request 2
-			rjmp 	ISR_ANACmp		; Timer 0 Compare Match
-			rjmp 	deadbeef		; EEPROM Ready
-			rjmp 	deadbeef		; Store Program Memory Ready
+	rjmp 	main 			; Reset-Vector
+	rjmp 	deadbeef		; Ext Int 0
+	rjmp 	deadbeef		; Ext Int 1
+	rjmp 	deadbeef		; Timer/Counter1 Capture Event
+	rjmp 	ISR_TC1			; Timer/Counter1 Compare Match A
+	rjmp 	deadbeef		; Timer/Counter1 Compare Match B
+	rjmp 	deadbeef		; Timer/Counter1 Overflow
+	rjmp 	deadbeef		; Timer/Counter0 Overflow
+	rjmp 	deadbeef		; Serial Transfer Complete
+	rjmp 	deadbeef		; UART Rx Complete
+	rjmp 	deadbeef		; UART Data register empty
+	rjmp 	deadbeef		; UART Tx Complete
+	rjmp 	ISR_ANACmp		; Analog Comparator
+	rjmp 	deadbeef		; External Interrupt Request 2
+	rjmp 	ISR_ANACmp		; Timer 0 Compare Match
+	rjmp 	deadbeef		; EEPROM Ready
+	rjmp 	deadbeef		; Store Program Memory Ready
 ;
 ; ==========================================
 ;    User Includes
@@ -215,12 +216,12 @@ sUartBuffer:	.byte 256	; 256 Byte as ringbuffer for UART TX (whole Page 1)
 .CSEG
 .ORG	INT_VECTORS_SIZE
 
-.INCLUDE	"tools.inc"			; usefull subroutines
-.INCLUDE	"macros.inc"		; Macros definitions
-.INCLUDE	"print.inc"			; output stream driver routines
-;.INCLUDE	"iic_driver.inc"	; IIC first level driver
-.INCLUDE	"iic_driver_orig.inc"	; IIC first level driver - original ATMEL driver
-.INCLUDE	"lcd_2x16a.inc"		; LCD driver
+.INCLUDE	"inc_user\tools.inc"			; usefull subroutines
+.INCLUDE	"inc_user\macros.inc"		; Macros definitions
+.INCLUDE	"inc_user\print.inc"			; output stream driver routines
+;.INCLUDE	"inc_user\iic_driver.inc"	; IIC first level driver
+.INCLUDE	"inc_user\iic_driver_orig.inc"	; IIC first level driver - original ATMEL driver
+.INCLUDE	"inc_user\lcd_2x16a.inc"		; LCD driver
 ;
 ;
 ; ==========================================
@@ -419,9 +420,9 @@ mp_02_left:	JMP_IFCLR_R rKeyPressed, bLeft, clearKeys	; if not key "left" presse
 			pop		rwl
 			rjmp	clearKeys							;	and finished
 
-mp_03:		; menu point 03 - I2C LCD init
+mp_03:		; menu screen 03 - I2C LCD init
 			JMP_IFCLR_R rKeyPressed, bRight, mp_03_left	; if not key "right" pressed: test if left key pressed
-			rcall	I2C_LCD_WRITE					; else ("right" pressed) send  over I2C
+			rcall	I2C_LCD_WRITE						; else ("right" pressed) send  over I2C
 			rjmp	clearKeys							;	and finished
 
 mp_03_left:	JMP_IFCLR_R rKeyPressed, bLeft, clearKeys	; if not key "left" pressed: nothing to do - finished
@@ -438,13 +439,13 @@ mp_03_left:	JMP_IFCLR_R rKeyPressed, bLeft, clearKeys	; if not key "left" presse
 			ldi		rwl, 'a'				; send "a"
 			rcall	I2C_do_transfer			; Execute transfer
 
-			rcall	I2C_stop			; Send stop condition
+			rcall	I2C_stop				; Send stop condition
 			pop		rwh
 			pop		rwl
 			IRQ_ENABLE
 			rjmp	clearKeys
 
-mp_04:		; menu point 04 - print ADC result from PCF8591 channel AIN3
+mp_04:		; menu screen 04 - print ADC result from PCF8591 channel AIN3
 			PRINTF	StrL2C10								; set cursor to Line=2, Column=10
 			JMP_IFCLR_R rFlag2, b_PCF8591_RD_EN, mp_04_off	; if read disabled print OFF string
 			lds		rwh, sAdcI2cAIN3
@@ -453,7 +454,7 @@ mp_04:		; menu point 04 - print ADC result from PCF8591 channel AIN3
 mp_04_off:	PRINTF	StrOff
 mp_04_end:	rjmp	clearKeys
 
-mp_05:		; menu point 05 - ;print ADC result from PCF8591 channel AIN2
+mp_05:		; menu screen 05 - print ADC result from PCF8591 channel AIN2
 			PRINTF	StrL2C10					; set cursor to Line=2, Column=10
 			JMP_IFCLR_R rFlag2, b_PCF8591_RD_EN, mp_04_off	; if read disabled print OFF string
 			lds		rwh, sAdcI2cAIN2
@@ -462,7 +463,7 @@ mp_05:		; menu point 05 - ;print ADC result from PCF8591 channel AIN2
 mp_05_off:	PRINTF	StrOff
 mp_05_end:	rjmp	clearKeys 
 
-mp_06:		; menu point 06 - print ADC result from internal comparator
+mp_06:		; menu screen 06 - print ADC result from internal comparator
 			PRINTF	StrL2C10					; set cursor to Line=2, Column=10
 			lds		rwl, sAdcRes
 			PRINT16 rNULL, rwl, 2, sig 
@@ -470,15 +471,15 @@ mp_06:		; menu point 06 - print ADC result from internal comparator
 
 
 clearKeys:	cbr 	rKeyPressed, KeyMask		; empty Key buffer	
-			sbrc	rFlag, b_UPDATE_SCREEN		; skip next line if bit not set
-			rcall	UPDATE_MENUFRAME					; if Flag set - update menu
+			sbrc	rFlag, b_UPDATE_SCREEN		; if Flag set
+			rcall	UPDATE_MENUFRAME			; 	update menu
 			cbr		rFlag, (1<<b_UPDATE_SCREEN)	; stop updating screen 
-			ret									;	else return
+			ret									; return
 
 ;******************************************************************************
 						
 mainLoop:
-			JMP_IFCLR_R rFlag, b_MAIN_TICK, mainLoop_sleep		; only execute main loop every tick (2,5ms)
+			JMP_IFCLR_R rFlag, b_MAIN_TICK, mainLoop_sleep		; execute main loop every tick (2,5ms)
 																; only necesary if sleep mode not activated
 			cbr		rFlag, (1<<b_MAIN_TICK)						; clear main tick
 
@@ -570,7 +571,7 @@ I2C_LCD_WRITE:
 ;* DESCRIPTION
 ;*	this subroutine is called from main whenever the preset timeout occures
 ;*	(every 500ms).
-;*	Put all jobs here which have to be done on a low frequent base,
+;*	Put all jobs here which have to be done on a low frequency rate.
 ;*
 ;* USAGE
 ;*	no Parameters
@@ -613,7 +614,7 @@ PCF8591_READ:
 			; that is why select channel AIN0 is sent
 			; and channel AIN3 is received
 
-			; read channels AINx---------------------------------------------
+			; read channels AINx
 			; prepare adc for read
 			rcall	I2C_init			
 			
@@ -630,20 +631,18 @@ PCF8591_READ:
 			sts		sAdcI2cAIN3, rwl		; store received value in SRAM
 	
 			;------------DEBUG--------------------
-			;CALL_IFTO sI2cTimer, 200, PRINT_RWL	; if timeout elapsed: print for debug
+			;CALL_IFTO sI2cTimer, 200, PRINT_RWL	; if timeout elapsed: print for debugging
 			;-------------------------------------
 
-
 			rcall	I2C_stop
-			;---------------------------------------------------------------
-
+			
 PCF8591_READ_END:
 			pop		rwh
 			pop		rwl
 			IRQ_ENABLE
 			ret
 
-;-----------------for debugging
+;------------DEBUG--------------------
 ;PRINT_RWL:
 ;			PREPARE_TO sI2cTimer	; set timeout for next call
 ;			push	xl
@@ -651,6 +650,7 @@ PCF8591_READ_END:
 ;			rcall	lcd_printb
 ;			pop		xl
 ;			ret
+;-------------------------------------
 
 ;***************************************************************************
 ;*
@@ -661,7 +661,7 @@ PCF8591_READ_END:
 ;*	writes the analog output
 ;*
 ;* USAGE
-;*	rtemp3 - contains the 8-bit value to which the analoug output should be set
+;*	rtemp3 - contains the 8-bit value to which the analog output should be set
 ;*
 ;* RETURN
 ;*	corresponding values in SRAM
@@ -845,7 +845,7 @@ uartFinished:
 ;*  
 ;**************************************************************************  
 ISR_ANACmp:
-			;IRQ_DISABLE		; disable all interrupst XXX TODO das funzt no net so richtig bei 0V
+			;IRQ_DISABLE		; disable all interrupst XXX TODO: Doens't work with 0V on input
 				
 			in		rwl, TCNT0				; Load timer value  
 			out		TCCR0, rNULL			; Stop timer0            
