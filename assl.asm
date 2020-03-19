@@ -1,22 +1,29 @@
-;
-; ***************************************************************************
-; * Assembly Lover                                                          *
-; * ATMega8515 with I2C Display and PCF8591 AD/DA       					*
-; * Version 0.1.1                            								*
-; *																			*
-; * (C)2013 by Christian Feichtinger         								*
-; ***************************************************************************
-;
+/****************************************************************************
+ * Assembly Lover                                                          	*
+ * ATMega8515 with I2C Display and PCF8591 AD/DA converter      			*
+ *																			*	
+ * Version 0.1.1                            								*
+ *																			*
+ * (C)2013 by Christian Feichtinger         								*
+ ****************************************************************************
+*/
+
 .NOLIST                		; disable Listing
 .INCLUDE "include\m8515def.inc" 	; Headerfile for ATMega8515
 .LIST                  		; enable Listing
-;
+
 ; ============================================
 ;	Hardware Information
 ; ============================================
 ;
-; ATMega8515 with some additional stuff
-;
+; ATMega8515 with: 
+;	- I2C Display
+;	- PCF8591 AD/DA converter
+;	- 4 Buttons
+;	- 3 LEDs (red, green, yellow)
+;	- 4MHz external oscillator
+
+
 ; ============================================
 ;	Ports and Pins
 ; ============================================
@@ -57,10 +64,17 @@
 ;  Constants and Definitions
 ; =======================================================
 ;
+
+.IFDEF DEBUG
+.MESSAGE "Debugging.." 
+.ELSE 
+.MESSAGE "Release.." 
+.ENDIF
+
 .EQU F_CPU 	= 4000000		; Oscillator Freq. in Hz
-.EQU F_ISR	= 400			; Timer Interrupt Freq. in Hz [400Hz - 2,5ms]
-;.EQU F_ISR	= 800			; Timer Interrupt Freq. in Hz [800Hz - 1,25ms]
-							; Timer Interrupt Freq. cannot be lower than 1,25ms because UART_TX@9600 takes 1,14ms for one char
+.EQU F_ISR	= 400			; Timer Interrupt Freq. in Hz [400: 400Hz - 2,5ms]
+							; Timer Interrupt Freq. in Hz [800: 800Hz - 1,25ms]
+							; Timer Interrupt Freq. cannot be higher than 800 Hz (1,25ms) because UART_TX@9600 takes 1,14ms for one char
 .EQU BAUD  	= 9600			; Baudrate
  
 ; UART Bauderate Calculations
@@ -341,8 +355,10 @@ main:
 			ldi		rwl, (1<<ACIE)|(3<<ACIS0)	; enable Comparator-Interrupt, Mode 3: interrupt on rising edge
 			out		ACSR, rwl
 
-; XXX only for test Prepare timeout for LED blinking in main loop
+	.IFDEF DEBUG
+	; XXX only for test Prepare timeout for LED blinking in main loop
 			PREPARE_TO sJobTimer		; save current timestamp for timeout to sram
+	.ENDIF
 
 ; Enable Interrupts
 			IRQ_ENABLE
@@ -482,9 +498,9 @@ mainLoop:
 			JMP_IFCLR_R rFlag, b_MAIN_TICK, mainLoop_sleep		; execute main loop every tick (2,5ms)
 																; only necesary if sleep mode not activated
 			cbr		rFlag, (1<<b_MAIN_TICK)						; clear main tick
-
+	.IFDEF DEBUG
 			sbi 	PORTD, pinXXXDEBUG3	; only for debugging to measure time for whole main loop
-
+	.ENDIF
 			tst		rKeyPressed		; if no button pressed
 			breq	main_do_jobs	; 	go on with other stuff
 			rcall	MenuHandle		; else (button pressed) do the button stuff	
@@ -508,8 +524,9 @@ main_do_jobs:
 			CALL_IFSET_R rFlag, b_JOB_ADC, AD_convert			; do AD comparator if scheduled
 
 mainLoop_sleep:
+	.IFDEF DEBUG
 			cbi 	PORTD, pinXXXDEBUG3	; only for debugging to measure time for whole main loop
-			
+	.ENDIF		
 			sleep						; go to sleep till next interrupt
 			rjmp 	mainLoop
 
@@ -630,10 +647,11 @@ PCF8591_READ:
 			rcall	I2C_do_transfer			; read value - rwl contains received data
 			sts		sAdcI2cAIN3, rwl		; store received value in SRAM
 	
+	.IFDEF DEBUG
 			;------------DEBUG--------------------
-			;CALL_IFTO sI2cTimer, 200, PRINT_RWL	; if timeout elapsed: print for debugging
+			CALL_IFTO sI2cTimer, 200, PRINT_RWL	; if timeout elapsed: print for debugging
 			;-------------------------------------
-
+	.ENDIF
 			rcall	I2C_stop
 			
 PCF8591_READ_END:
@@ -642,15 +660,17 @@ PCF8591_READ_END:
 			IRQ_ENABLE
 			ret
 
-;------------DEBUG--------------------
-;PRINT_RWL:
-;			PREPARE_TO sI2cTimer	; set timeout for next call
-;			push	xl
-;			lds		xl, sI2cResult
-;			rcall	lcd_printb
-;			pop		xl
-;			ret
-;-------------------------------------
+	.IFDEF DEBUG
+			;------------DEBUG--------------------
+PRINT_RWL:
+			PREPARE_TO sI2cTimer	; set timeout for next call
+			push	xl
+			lds		xl, sI2cResult
+			rcall	lcd_printb
+			pop		xl
+			ret
+			;-------------------------------------
+	.ENDIF
 
 ;***************************************************************************
 ;*
@@ -914,9 +934,9 @@ AD_convert:
 ;***************************************************************************
 ISR_TC1:	; inactive: Timer 1 Interrupt every 1,25ms (with interval set to 800Hz)
 			; active: Timer 1 Interrupt every 2,5ms (with interval set to 400Hz)
-
+	.IFDEF DEBUG
 			sbi 	PORTD, pinXXXDEBUG1	; 	only for debugging to measure time
-						
+	.ENDIF					
 			push	rwl					; store registers on stack
 			push	rwh
 			push	xl
@@ -967,9 +987,10 @@ ISR_TC1_10ms_prepare:
 			rjmp	ISR_TC1_10ms_jobs	;	and do 10ms jobs
 
 
-ISR_TC1_10ms_jobs:	; jobs to do every 10ms - set by VT10MS			
+ISR_TC1_10ms_jobs:	; jobs to do every 10ms - set by VT10MS		
+	.IFDEF DEBUG
 			sbi 	PORTD, pinXXXDEBUG2	; 	only for debugging to measure time
-			
+	.ENDIF	
 			; schedule jobs do be executed in main loop
 			sbr		rFlag, (1<<b_JOB_ADC)		; Schedule ADC Job
 			sbr		rFlag, (1<<b_JOB_PCF8591_RD); Schedule Job PCF8591 ADC read
@@ -1006,10 +1027,10 @@ ISR_TC1_End:
 			pop		xl
 			pop		rwh
 			pop		rwl
-			
+	.IFDEF DEBUG			
 			cbi 	PORTD, pinXXXDEBUG2	; 	only for debugging to measure time for 10ms part
 			cbi 	PORTD, pinXXXDEBUG1	; 	only for debugging to measure time for whole interrupt part
-
+	.ENDIF
 			reti
 
 
